@@ -1,0 +1,52 @@
+{
+	servers {
+		protocols h1 h2
+	}
+}
+
+{$TEMPINBOX_API_DOMAIN:localhost} {
+	# TLS hardening
+	tls {
+		protocols tls1.2 tls1.3
+	}
+
+	# Global security headers
+	header {
+		Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		X-XSS-Protection "0"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Content-Security-Policy "default-src 'none'; frame-ancestors 'none'"
+		Permissions-Policy "geolocation=(), microphone=(), camera=()"
+		-Server
+	}
+
+	# Block Swagger/OpenAPI docs in production
+	respond /docs 404
+	respond /redoc 404
+	respond /openapi.json 404
+
+	# Admin endpoints (protected by X-Master-Key in the application)
+	handle /admin/* {
+		reverse_proxy api:8000
+	}
+
+	# Limit request body to 11 MB (slightly above max email size 10 MB)
+	request_body {
+		max_size 11MB
+	}
+
+	# Health check — no auth, no restriction
+	handle /health {
+		reverse_proxy api:8000
+	}
+
+	# Public API
+	handle /api/* {
+		reverse_proxy api:8000
+	}
+
+	# Default — deny anything else
+	respond 404
+}
