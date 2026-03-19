@@ -1,8 +1,10 @@
 """SMTP server handler that receives emails and stores them in the database."""
 
+import asyncio
+
 import structlog
-from aiosmtpd.controller import Controller
-from aiosmtpd.smtp import SMTP, Envelope, Session
+from aiosmtpd.smtp import SMTP as SMTPProtocol
+from aiosmtpd.smtp import Envelope, Session
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -31,7 +33,7 @@ class TempInboxHandler:
 
     async def handle_RCPT(
         self,
-        server: SMTP,
+        server: SMTPProtocol,
         session: Session,
         envelope: Envelope,
         address: str,
@@ -48,7 +50,7 @@ class TempInboxHandler:
 
     async def handle_DATA(
         self,
-        server: SMTP,
+        server: SMTPProtocol,
         session: Session,
         envelope: Envelope,
     ) -> str:
@@ -102,15 +104,42 @@ class TempInboxHandler:
         return "250 Message accepted"
 
 
-def create_smtp_controller(
+class SMTPServer:
+    """Runs aiosmtpd in the same asyncio event loop as FastAPI."""
+
+    def __init__(
+        self,
+        handler: TempInboxHandler,
+        hostname: str,
+        port: int,
+    ) -> None:
+        self.handler = handler
+        self.hostname = hostname
+        self.port = port
+        self.server: asyncio.Server | None = None
+
+    async def start(self) -> None:
+        """Start the SMTP server in the current event loop."""
+        self.server = await asyncio.get_running_loop().create_server(
+            lambda: SMTPProtocol(self.handler),
+            self.hostname,
+            self.port,
+        )
+
+    async def stop(self) -> None:
+        """Stop the SMTP server."""
+        if self.server:
+            self.server.close()
+            await self.server.wait_closed()
+
+
+async def create_smtp_server(
     session_factory: async_sessionmaker[AsyncSession],
     settings: Settings,
     redis: Redis | None = None,
-) -> Controller:
-    """Create an aiosmtpd Controller wired to TempInboxHandler."""
+) -> SMTPServer:
+    """Create and start an SMTP server in the current event loop."""
     handler = TempInboxHandler(session_factory, settings, redis=redis)
-    return Controller(
-        handler,
-        hostname=settings.smtp_host,
-        port=settings.smtp_port,
-    )
+    server = SMTPServer(handler, settings.smtp_host, settings.smtp_port)
+    await server.start()
+    return server
