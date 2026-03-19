@@ -36,11 +36,11 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
-    pids_limit: 256
     deploy:
       resources:
         limits:
           memory: 512M
+          pids: 256
 
   postgres:
     image: postgres:17-alpine
@@ -81,15 +81,16 @@ services:
     cap_drop:
       - ALL
     cap_add:
+      - CHOWN
       - DAC_OVERRIDE
       - FOWNER
       - SETGID
       - SETUID
-    pids_limit: 128
     deploy:
       resources:
         limits:
           memory: 512M
+          pids: 128
 
   redis:
     image: redis:7-alpine
@@ -121,11 +122,14 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
-    pids_limit: 64
+    cap_add:
+      - SETUID
+      - SETGID
     deploy:
       resources:
         limits:
           memory: 128M
+          pids: 64
 
   caddy:
     image: caddy:2-alpine
@@ -153,11 +157,11 @@ services:
       - ALL
     cap_add:
       - NET_BIND_SERVICE
-    pids_limit: 64
     deploy:
       resources:
         limits:
           memory: 128M
+          pids: 64
 
 networks:
   frontend:

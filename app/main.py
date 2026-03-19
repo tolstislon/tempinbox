@@ -17,7 +17,7 @@ from app.database import create_engine, create_session_factory
 from app.logging import setup_logging
 from app.middleware.rate_limit import RateLimitMiddleware
 from app.services.cleanup import cleanup_old_messages
-from app.smtp.server import create_smtp_controller
+from app.smtp.server import create_smtp_server
 
 logger = structlog.get_logger()
 
@@ -66,8 +66,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     app.state.redis = redis
 
     # Start SMTP
-    smtp_controller = create_smtp_controller(session_factory, settings, redis=redis)
-    smtp_controller.start()
+    smtp_server = await create_smtp_server(session_factory, settings, redis=redis)
     await logger.ainfo("SMTP server started", host=settings.smtp_host, port=settings.smtp_port)
 
     # Start cleanup task
@@ -76,7 +75,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     yield
 
     cleanup_task.cancel()
-    smtp_controller.stop()
+    await smtp_server.stop()
     await redis.aclose()
     await engine.dispose()
     await logger.ainfo("Shutdown complete")

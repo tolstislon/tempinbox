@@ -41,18 +41,22 @@ The API is available at `https://localhost` (via Caddy) and the SMTP server at `
 
 ### DNS Setup
 
-Configure the following DNS records for your domain (e.g., `api.example.com`):
+Configure the following DNS records (replace `example.com` with your domain):
 
 | Type | Name | Value | TTL |
 |------|------|-------|-----|
-| A | `api.example.com` | `<VPS_IP>` | 300 |
-| MX | `example.com` | `10 api.example.com` | 300 |
-| TXT (SPF) | `example.com` | `v=spf1 -all` | 300 |
-| TXT (DMARC) | `_dmarc.example.com` | `v=DMARC1; p=reject; rua=mailto:admin@example.com` | 300 |
+| A | `@` | `<VPS_IP>` | 14400 |
+| A | `api` | `<VPS_IP>` | 14400 |
+| MX | `@` | `example.com` (priority 10) | 14400 |
 
-> **SPF and DMARC are mandatory.** TempInbox is a receive-only service. `v=spf1 -all` explicitly states that no one is authorized to send email from your domain. DMARC `p=reject` enforces this.
+Also configure a **PTR (rDNS) record** for your VPS IP to point back to `example.com` (usually done in VPS provider's dashboard).
 
-Also configure a **PTR (rDNS) record** for your VPS IP to point back to `api.example.com` (usually done in VPS provider's dashboard).
+Optionally, add SPF and DMARC records to explicitly declare that no one sends email from your domain:
+
+| Type | Name | Value |
+|------|------|-------|
+| TXT | `@` | `v=spf1 -all` |
+| TXT | `_dmarc` | `v=DMARC1; p=reject` |
 
 ### Deploy Steps
 
@@ -68,7 +72,7 @@ sed -i "s/change-me-to-a-different-secure-password/$(openssl rand -hex 24)/" .en
 
 # 3. Set your domain and SMTP domains
 # Edit .env:
-#   TEMPINBOX_DOMAIN=api.example.com
+#   TEMPINBOX_API_DOMAIN=api.example.com
 #   TEMPINBOX_SMTP_DOMAINS=["example.com"]
 
 # 4. Start (migrations run automatically on boot)
@@ -79,9 +83,9 @@ docker compose up -d
 
 **Minimum (up to ~1,000 emails/day):** 1 vCPU, 2 GB RAM, 20 GB SSD
 
-**Recommended (up to ~10,000 emails/day):** 2 vCPU, 2 GB RAM, 40 GB SSD
+**Recommended (up to ~10,000 emails/day):** 2 vCPU, 4 GB RAM, 40 GB SSD
 
-Providers with port 25 open: Hetzner Cloud, OVH/Kimsufi, Contabo, Vultr (requires request).
+> **Important:** Many VPS providers block port 25 by default (e.g., DigitalOcean blocks it permanently). Verify that your provider allows inbound SMTP traffic before deploying.
 
 ## Development Setup
 
